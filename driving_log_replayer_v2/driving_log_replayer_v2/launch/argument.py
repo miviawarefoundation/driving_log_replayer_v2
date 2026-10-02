@@ -151,6 +151,16 @@ def get_launch_arguments() -> list:
         description="Whether to launch Autoware or not. set false if Autoware is started on a different PC.",
     )
     add_launch_arg(
+        "autoware_launch_package",
+        default_value="pixkit_autoware_launch",
+        description="Package providing logging_simulator.launch.xml and planning_simulator.launch.xml. Ex: autoware_launch_package:=pixkit_autoware_launch",
+    )
+    add_launch_arg(
+        "launch_vehicle_interface",
+        default_value="true",
+        description="Passed to logging_simulator.launch.xml. Set false if the rosbag already contains /vehicle/status/*.",
+    )
+    add_launch_arg(
         "record_only",
         default_value="false",
         description="Do only bag record without starting evaluator node",

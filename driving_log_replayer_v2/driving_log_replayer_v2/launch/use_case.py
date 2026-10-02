@@ -51,20 +51,21 @@ def launch_autoware(context: LaunchContext) -> list:
         "vehicle_id": conf["vehicle_id"],
     }
 
+    autoware_launch_package = conf["autoware_launch_package"]
     # For perception_reproducer, use planning_simulator instead of logging_simulator
     if conf["use_case"] == "perception_reproducer":
         autoware_launch_file = Path(
-            get_package_share_directory("autoware_launch"),
+            get_package_share_directory(autoware_launch_package),
             "launch",
             "planning_simulator.launch.xml",
         )
     else:
         autoware_launch_file = Path(
-            get_package_share_directory("autoware_launch"),
+            get_package_share_directory(autoware_launch_package),
             "launch",
             "logging_simulator.launch.xml",
         )
-        launch_args["launch_vehicle_interface"] = "true"
+        launch_args["launch_vehicle_interface"] = conf["launch_vehicle_interface"]
         launch_args["launch_system_monitor"] = "true"
 
     launch_config = import_module(f"driving_log_replayer_v2.launch.{conf['use_case']}")
