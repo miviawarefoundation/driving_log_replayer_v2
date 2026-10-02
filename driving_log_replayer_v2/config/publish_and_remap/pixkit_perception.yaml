@@ -1,5 +1,5 @@
 # Pixkit (pixkit_autoware_launch), replay con localization:=false.
-# Sezioni 1 + 2 di visapp/bags-raw/topics.txt: ingressi dei nodi rilanciati
+# Sezioni 1 + 2 di config/topics.txt (repo visapp-labelling): ingressi dei nodi rilanciati
 # offline e localizzazione registrata. La sezione 3 (uscite di bordo di radar
 # e percezione, /tf_static, /diagnostics) resta nella bag ma non viene
 # riprodotta: la rigenerano i nodi rilanciati.
