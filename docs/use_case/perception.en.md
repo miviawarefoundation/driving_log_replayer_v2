@@ -132,7 +132,7 @@ The perception evaluation output is marked as `Error` when condition for `Normal
 Only add 1 to FrameSkip in the following cases.
 FrameSkip is a counter for the number of times evaluation is skipped.
 
-- No Ground Truth exists within 75msec before or after the received object's header time.
+- No Ground Truth exists within ground_truth_time_threshold_us (40msec by default) before or after the received object's header time.
 - If the number of footprint.points of the received object is 1 or 2 (this condition will be removed when "perception_eval" is updated)
 
 ### Skipping evaluation(NoGTNoObject)
@@ -157,6 +157,12 @@ e.g. `ignore_frames:="0-4,10,first:1,last:2"`
 `N` and `A-B` are matched against the frame index of the dataset, while `first:N` and `last:N` are matched against the position of the frame in the sequence of the frames which would be evaluated, so they can be used without knowing the frame indices of the dataset. They are typically used to drop the head and the tail of the scene where the ego vehicle or the perception module is not settled yet.
 
 `last:N` cannot be decided while the rosbag is read, so the writing of the last N evaluated frames is delayed until the end of the rosbag, and they are then written as ignored frames. The frames ignored by `last:N` are removed from the frame results before the metrics, the analysis and the coverage are computed.
+
+### ground_truth_time_threshold_us
+
+The objects of a message are evaluated against the Ground Truth frame closest to their header time, if it is within `Evaluation.ground_truth_time_threshold_us` microseconds (default 40000; perception_eval's default is 75 ms).
+
+It must stay below half the period of the objects (50 ms at 10 Hz). Otherwise, when the Ground Truth is sparser than the objects (e.g. annotated at 2 Hz) and their header times are offset from it, two consecutive messages can be bound to the same Ground Truth frame, which is then evaluated twice. It must also stay above that offset, or no message is bound to the frame.
 
 ## Topic name and data type used by evaluation script
 
@@ -283,7 +289,7 @@ Format of each frame:
 {
   "Frame": {
     "FrameName": "Frame number of t4_dataset used for evaluation",
-    "FrameSkip": "The total number of times the evaluation was skipped, which occurs when the evaluation of an object is requested but there is no Ground Truth in the dataset within 75msec, or when the number of footprint.points is 1 or 2.",
+    "FrameSkip": "The total number of times the evaluation was skipped, which occurs when the evaluation of an object is requested but there is no Ground Truth in the dataset within ground_truth_time_threshold_us (40msec by default), or when the number of footprint.points is 1 or 2.",
     "criteria0": {
       // result of criteria 0, If the Ground Truth and recognition objects exist
       "PassFail": {
@@ -312,9 +318,9 @@ Information Data Format:
 {
   "Frame": {
     "Info": {
-      "Reason": "Why the frame was not evaluated. NO_GROUND_TRUTH: there is no Ground Truth within 75msec of the header time of the received objects. IGNORED_FRAME: the frame is excluded by the ignore_frames setting."
+      "Reason": "Why the frame was not evaluated. NO_GROUND_TRUTH: there is no Ground Truth within ground_truth_time_threshold_us (40msec by default) of the header time of the received objects. IGNORED_FRAME: the frame is excluded by the ignore_frames setting."
     },
-    "FrameSkip": "Total number of times the evaluation was skipped. This occurs when you request the evaluation of an object but there is no ground truth value within 75msec in the dataset or footprint.points is 1 or 2."
+    "FrameSkip": "Total number of times the evaluation was skipped. This occurs when you request the evaluation of an object but there is no ground truth value within ground_truth_time_threshold_us (40msec by default) in the dataset or footprint.points is 1 or 2."
   }
 }
 ```
@@ -327,7 +333,7 @@ Warning Data Format:
     "Warning": {
       "Reason": "Why the frame was not evaluated. INVALID_ESTIMATED_OBJECTS: the received objects could not be converted, e.g. the number of footprint.points is 1 or 2."
     },
-    "FrameSkip": "The total number of times the evaluation was skipped, which occurs when the evaluation of an object is requested but there is no Ground Truth in the dataset within 75msec, or when the number of footprint.points is 1 or 2."
+    "FrameSkip": "The total number of times the evaluation was skipped, which occurs when the evaluation of an object is requested but there is no Ground Truth in the dataset within ground_truth_time_threshold_us (40msec by default), or when the number of footprint.points is 1 or 2."
   }
 }
 ```
@@ -516,7 +522,7 @@ The final line also reports how much of the Ground Truth of the dataset was actu
     "Coverage": "GtFramesEvaluated / GtFrames, rounded to 4 decimals",
     "SkipReasons": {
       "INVALID_ESTIMATED_OBJECTS": "Number of frames skipped because the received objects could not be converted",
-      "NO_GROUND_TRUTH": "Number of frames skipped because no Ground Truth was found within 75msec",
+      "NO_GROUND_TRUTH": "Number of frames skipped because no Ground Truth was found within ground_truth_time_threshold_us (40msec by default)",
       "IGNORED_FRAME": "Number of frames excluded by the ignore_frames setting"
     }
   }

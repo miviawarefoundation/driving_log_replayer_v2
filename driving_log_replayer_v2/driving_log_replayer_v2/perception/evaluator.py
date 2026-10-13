@@ -62,9 +62,11 @@ class PerceptionEvaluator(Evaluator):
         evaluation_task: str,
         frame_id_str: str,
         ignore_frames: IgnoreFrames,
+        ground_truth_time_threshold_us: int,
     ) -> None:
         # NOTE: this class uses the perception_eval package, so not use parent logger, which means not call super().__init__()
         # instance variables
+        self.__ground_truth_time_threshold_us = ground_truth_time_threshold_us
         self.__skip_counter = 0
         self.__evaluated_frame_position = 0  # 1-based position of the evaluated frames
         self.__skip_reasons: Counter[str] = Counter()
@@ -159,6 +161,7 @@ class PerceptionEvaluator(Evaluator):
 
         ground_truth_now_frame = self.__evaluator.get_ground_truth_now_frame(
             converted_data.header_timestamp,
+            threshold_min_time=self.__ground_truth_time_threshold_us,
             interpolate_ground_truth=data.interpolation,
         )
 

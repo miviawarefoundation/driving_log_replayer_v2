@@ -128,7 +128,7 @@ Criterion:
 以下の場合に、FrameSkipに1足す処理のみ行う。
 FrameSkipは評価をskipした回数のカウンタ。
 
-- 受信したobjectのヘッダー時刻の前後75msec以内に真値が存在しない場合
+- 受信したobjectのヘッダー時刻の前後ground_truth_time_threshold_us（既定 40msec）以内に真値が存在しない場合
 - 受信したobjectのfootprint.pointsの数が1か2の場合(この条件はperception_evalが更新されたらなくなる予定)
 
 ### 評価スキップNoGTNoObject
@@ -153,6 +153,12 @@ FrameSkipは評価をskipした回数のカウンタ。
 `N` と `A-B` は dataset のフレームインデックスに対する指定だが、`first:N` と `last:N` は評価対象となるフレームの順番に対する指定なので、dataset のフレームインデックスを調べなくても使用できる。自車や認識モジュールの状態が安定していないシーンの先頭・末尾を除外する用途を想定している。
 
 `last:N` は rosbag を読んでいる途中では確定できないため、評価したフレームのうち最後の N フレームは書き出しを rosbag の最後まで遅延させ、除外フレームとして書き出す。`last:N` で除外されたフレームは、メトリクス・解析・カバレッジの計算前に frame results から削除される。
+
+### ground_truth_time_threshold_us
+
+受信した object は、ヘッダー時刻に最も近い真値のフレームと、その時刻差が `Evaluation.ground_truth_time_threshold_us` マイクロ秒以内の場合に評価される（既定値 40000。perception_eval の既定値は 75 ms）。
+
+object の周期の半分（10 Hz なら 50 ms）未満にすること。真値が object より疎で（例: 2 Hz でアノテーション）ヘッダー時刻が真値からずれている場合、そうしないと連続する 2 つのメッセージが同じ真値フレームに対応付けられ、そのフレームが 2 回評価される。また、そのずれより大きくすること。そうしないとフレームにどのメッセージも対応付けられない。
 
 ## 評価スクリプトが使用する Topic 名とデータ型
 
@@ -309,9 +315,9 @@ perception では、シナリオに指定した条件で perception_eval が評�
 {
   "Frame": {
     "Info": {
-      "Reason": "評価されなかった理由。NO_GROUND_TRUTH: 受信したobjectのヘッダー時刻の前後75msec以内に真値が存在しない。IGNORED_FRAME: ignore_frames の設定で評価対象外になった。"
+      "Reason": "評価されなかった理由。NO_GROUND_TRUTH: 受信したobjectのヘッダー時刻の前後ground_truth_time_threshold_us（既定 40msec）以内に真値が存在しない。IGNORED_FRAME: ignore_frames の設定で評価対象外になった。"
     },
-    "FrameSkip": "評価が飛ばされた回数の合計。objectの評価を依頼したがdatasetに75msec以内の真値がなく場合、または、footprint.pointsの数が1か2の場合に発生する"
+    "FrameSkip": "評価が飛ばされた回数の合計。objectの評価を依頼したがdatasetにground_truth_time_threshold_us（既定 40msec）以内の真値がなく場合、または、footprint.pointsの数が1か2の場合に発生する"
   }
 }
 ```
@@ -324,7 +330,7 @@ perception では、シナリオに指定した条件で perception_eval が評�
     "Warning": {
       "Reason": "評価されなかった理由。INVALID_ESTIMATED_OBJECTS: 受信したobjectを変換できなかった(footprint.pointsの数が1か2の場合など)。"
     },
-    "FrameSkip": "評価が飛ばされた回数の合計。objectの評価を依頼したがdatasetに75msec以内の真値がなく場合、または、footprint.pointsの数が1か2の場合に発生する"
+    "FrameSkip": "評価が飛ばされた回数の合計。objectの評価を依頼したがdatasetにground_truth_time_threshold_us（既定 40msec）以内の真値がなく場合、または、footprint.pointsの数が1か2の場合に発生する"
   }
 }
 ```
@@ -513,7 +519,7 @@ evaluation_taskがfp_validationの場合
     "Coverage": "GtFramesEvaluated / GtFrames を小数第4位で丸めた値",
     "SkipReasons": {
       "INVALID_ESTIMATED_OBJECTS": "受信したobjectを変換できずスキップしたフレーム数",
-      "NO_GROUND_TRUTH": "75msec以内に真値が見つからずスキップしたフレーム数",
+      "NO_GROUND_TRUTH": "ground_truth_time_threshold_us（既定 40msec）以内に真値が見つからずスキップしたフレーム数",
       "IGNORED_FRAME": "ignore_frames の設定で評価対象外にしたフレーム数"
     }
   }

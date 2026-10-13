@@ -76,6 +76,7 @@ class PerceptionEvaluationManager(EvaluationManager):
                 else "fp_validation",  # NOTE: The t4dataset used in fp_validation is specialized, so it cannot be performed concurrently with other evaluation tasks.
                 "base_link" if task == "detection" else "map",
                 ignore_frames,
+                self._scenario.Evaluation.ground_truth_time_threshold_us,
             )
             for task, topics in evaluation_topics_with_task.items()
             for topic in topics

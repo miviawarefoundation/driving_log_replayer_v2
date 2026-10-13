@@ -18,21 +18,25 @@ from collections import Counter
 import logging
 from types import SimpleNamespace
 
+import pytest
+
 from driving_log_replayer_v2.perception.evaluator import PerceptionEvaluator
 from driving_log_replayer_v2.perception.evaluator import PerceptionInvalidReason
+from driving_log_replayer_v2.perception.models import Evaluation
 from driving_log_replayer_v2.post_process.evaluation_manager import IgnoreFrames
 from driving_log_replayer_v2.post_process.evaluation_manager import parse_ignore_frames
 
 FRAME_INTERVAL: int = 100000  # [us], 10 Hz
 BASE_TIME: int = 1624157578750212
+DEFAULT_THRESHOLD: int = Evaluation.model_fields["ground_truth_time_threshold_us"].default
 
 
 class FakeEvaluationManager:
     """Minimal stand-in for perception_eval's PerceptionEvaluationManager."""
 
-    def __init__(self, num_gt_frames: int) -> None:
+    def __init__(self, num_gt_frames: int, gt_interval: int = FRAME_INTERVAL) -> None:
         self.ground_truth_frames = [
-            SimpleNamespace(frame_name=str(i), unix_time=BASE_TIME + i * FRAME_INTERVAL)
+            SimpleNamespace(frame_name=str(i), unix_time=BASE_TIME + i * gt_interval)
             for i in range(num_gt_frames)
         ]
         self.frame_results = []
@@ -41,13 +45,19 @@ class FakeEvaluationManager:
     def get_ground_truth_now_frame(
         self,
         unix_time: int,
+        threshold_min_time: int = 75000,
         *,
         interpolate_ground_truth: bool = False,  # noqa: ARG002
     ) -> SimpleNamespace | None:
-        for frame in self.ground_truth_frames:
-            if frame.unix_time == unix_time:
-                return frame
-        return None
+        # the closest frame within threshold_min_time, as perception_eval's get_now_frame
+        closest = min(
+            self.ground_truth_frames,
+            key=lambda frame: abs(frame.unix_time - unix_time),
+            default=None,
+        )
+        if closest is None or abs(closest.unix_time - unix_time) > threshold_min_time:
+            return None
+        return closest
 
     def add_frame_result(
         self,
@@ -66,7 +76,10 @@ class FakeEvaluationManager:
 
 
 def create_evaluator(
-    ignore_frames: IgnoreFrames, num_gt_frames: int = 5
+    ignore_frames: IgnoreFrames,
+    num_gt_frames: int = 5,
+    gt_interval: int = FRAME_INTERVAL,
+    ground_truth_time_threshold_us: int = DEFAULT_THRESHOLD,
 ) -> tuple[PerceptionEvaluator, FakeEvaluationManager]:
     """
     Create a PerceptionEvaluator without loading a t4_dataset.
@@ -75,7 +88,7 @@ def create_evaluator(
     used by evaluate_frame() / get_frame_coverage() are set here.
     """
     evaluator = PerceptionEvaluator.__new__(PerceptionEvaluator)
-    inner_evaluator = FakeEvaluationManager(num_gt_frames)
+    inner_evaluator = FakeEvaluationManager(num_gt_frames, gt_interval)
     prefix = "_PerceptionEvaluator__"
     for name, value in {
         "skip_counter": 0,
@@ -87,13 +100,17 @@ def create_evaluator(
         "critical_object_filter_config": None,
         "frame_pass_fail_config": None,
         "evaluation_topic": "/perception/object_recognition/detection/objects",
+        "ground_truth_time_threshold_us": ground_truth_time_threshold_us,
     }.items():
         setattr(evaluator, prefix + name, value)
     return evaluator, inner_evaluator
 
 
 def create_converted_data(frame_index: int) -> SimpleNamespace:
-    header_timestamp = BASE_TIME + frame_index * FRAME_INTERVAL
+    return create_converted_data_at(BASE_TIME + frame_index * FRAME_INTERVAL)
+
+
+def create_converted_data_at(header_timestamp: int) -> SimpleNamespace:
     return SimpleNamespace(
         header_timestamp=header_timestamp,
         subscribed_timestamp=header_timestamp + 1000,
@@ -183,6 +200,31 @@ def test_frame_coverage_reports_the_scored_denominator() -> None:
         "Coverage": 0.6,
         "SkipReasons": {"NO_GROUND_TRUTH": 1},
     }
+
+
+@pytest.mark.parametrize(
+    ("threshold", "expected_frame_names"),
+    [
+        (DEFAULT_THRESHOLD, ["0", "1", "2"]),
+        # perception_eval's default: the message 72 ms after a frame is bound to it too
+        (75000, ["0", "0", "1", "1", "2", "2"]),
+    ],
+)
+def test_sparse_ground_truth_frame_is_evaluated_once(
+    threshold: int, expected_frame_names: list[str]
+) -> None:
+    """Ground truth at 2 Hz, objects at 10 Hz stamped 28 ms before it."""
+    evaluator, inner_evaluator = create_evaluator(
+        IgnoreFrames(),
+        num_gt_frames=3,
+        gt_interval=5 * FRAME_INTERVAL,
+        ground_truth_time_threshold_us=threshold,
+    )
+
+    for i in range(15):
+        evaluator.evaluate_frame(create_converted_data_at(BASE_TIME - 28000 + i * FRAME_INTERVAL))
+
+    assert inner_evaluator.added_frame_names == expected_frame_names
 
 
 def _apply_tail_ignore(evaluator: PerceptionEvaluator) -> None:

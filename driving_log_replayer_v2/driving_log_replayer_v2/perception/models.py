@@ -20,6 +20,7 @@ from typing import Literal
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
+from pydantic import Field
 from pydantic import field_validator
 from pydantic import model_validator
 
@@ -154,6 +155,12 @@ class Evaluation(BaseModel):
     PerceptionPassFailConfig: dict
     degradation_topic: str | None = None
     ignore_frames: str | None = None
+    # Max time difference [us] between the header of the objects and the ground truth frame they
+    # are evaluated against. Below half the period of the objects (50 ms at 10 Hz), otherwise two
+    # consecutive messages can be bound to the same ground truth frame, which is then evaluated
+    # twice, when the ground truth is sparser than the objects (e.g. annotated at 2 Hz).
+    # perception_eval's default is 75 ms.
+    ground_truth_time_threshold_us: int = Field(default=40000, gt=0)
 
 
 class IncludeUseCase(BaseModel):
